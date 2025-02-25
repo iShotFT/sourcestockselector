@@ -116,7 +116,7 @@ namespace StockpileSelector
     [HarmonyPatch("TryFindBestBillIngredients")]
     public class Patch_WorkGiver_DoBill_TryFindBestBillIngredients
     {
-        public static bool Prefix(Bill bill, Pawn pawn, Thing billGiver, List<ThingCount> chosen, List<IngredientCount> missingIngredients)
+        public static bool Prefix(Bill bill, Pawn pawn, Thing billGiver, List<ThingCount> chosen, List<IngredientCount> missingIngredients, ref bool __result)
         {
             // Get the StockpileFilter for this bill
             var filter = StockpileFilter.GetFilterForBill(bill);
@@ -133,12 +133,44 @@ namespace StockpileSelector
                 .ToList();
 
             // If we found no valid ingredients, let the original method run
-            if (!relevantThings.Any()) return true;
+            if (!relevantThings.Any())
+            {
+                __result = false;
+                return false;
+            }
 
-            // Try to find ingredients from our filtered list
-            return WorkGiver_DoBill.TryFindBestBillIngredientsInSet(
-                relevantThings, bill, chosen, billGiver.Position, 
-                missingIngredients, bill.recipe.allowMixingIngredients);
+            // Process each ingredient requirement
+            foreach (var ingredient in bill.recipe.ingredients)
+            {
+                var availableThings = relevantThings
+                    .Where(t => ingredient.filter.Allows(t))
+                    .OrderBy(t => t.Position.DistanceToSquared(billGiver.Position))
+                    .ToList();
+                
+                if (!availableThings.Any())
+                {
+                    missingIngredients?.Add(ingredient);
+                    continue;
+                }
+                
+                var needed = ingredient.GetBaseCount();
+                foreach (var thing in availableThings)
+                {
+                    var toTake = (int)Math.Min(needed, thing.stackCount);
+                    chosen.Add(new ThingCount(thing, toTake));
+                    needed -= toTake;
+                    
+                    if (needed <= 0) break;
+                }
+                
+                if (needed > 0)
+                {
+                    missingIngredients?.Add(ingredient);
+                }
+            }
+            
+            __result = chosen.Any();
+            return false;
         }
     }
 
