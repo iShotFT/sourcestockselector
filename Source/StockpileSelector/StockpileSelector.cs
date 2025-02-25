@@ -73,12 +73,12 @@ namespace StockpileSelector
         [HarmonyPostfix]
         public static void Postfix(Bill_Production __instance, Rect baseRect, Color baseColor)
         {
-            var stockpileRef = __instance.GetStockpileRef();
+            var filter = StockpileFilter.GetFilterForBill(__instance);
 
             // Create a button to select a stockpile
             Rect stockpileRect = new Rect(baseRect.x, baseRect.yMax + 4f, baseRect.width, 24f);
-            string stockpileLabel = stockpileRef.stockpile != null 
-                ? "Pull from: " + stockpileRef.stockpile.label 
+            string stockpileLabel = filter.allowedStockpiles.Any()
+                ? "Pull from: " + string.Join(", ", filter.allowedStockpiles.Select(s => s.label))
                 : "Select stockpile to pull from";
             
             if (Widgets.ButtonText(stockpileRect, stockpileLabel))
@@ -87,14 +87,22 @@ namespace StockpileSelector
                 
                 options.Add(new FloatMenuOption("Any stockpile (default)", delegate
                 {
-                    stockpileRef.stockpile = null;
+                    filter.enabled = false;
+                    filter.allowedStockpiles.Clear();
                 }));
                 
                 foreach (Zone_Stockpile stockpile in Find.CurrentMap.zoneManager.AllZones.OfType<Zone_Stockpile>())
                 {
-                    options.Add(new FloatMenuOption(stockpile.label, delegate
+                    string checkMark = filter.allowedStockpiles.Contains(stockpile) ? "✓ " : "";
+                    options.Add(new FloatMenuOption(checkMark + stockpile.label, delegate
                     {
-                        stockpileRef.stockpile = stockpile;
+                        if (filter.allowedStockpiles.Contains(stockpile))
+                            filter.allowedStockpiles.Remove(stockpile);
+                        else
+                        {
+                            filter.enabled = true;
+                            filter.allowedStockpiles.Add(stockpile);
+                        }
                     }));
                 }
                 
@@ -104,28 +112,33 @@ namespace StockpileSelector
     }
 
     // Patch the WorkGiver_DoBill.TryFindBestBillIngredients method
-    [HarmonyPatch(typeof(WorkGiver_DoBill), "TryFindBestBillIngredients")]
-    public static class WorkGiver_DoBill_TryFindBestBillIngredients_Patch
+    [HarmonyPatch(typeof(WorkGiver_DoBill))]
+    [HarmonyPatch("TryFindBestBillIngredients")]
+    public class Patch_WorkGiver_DoBill_TryFindBestBillIngredients
     {
-        [HarmonyPrefix]
-        public static bool Prefix(Bill bill, Pawn pawn, Thing billGiver, List<ThingCount> chosen, ref bool __result, ref List<Thing> relevantThings)
+        public static bool Prefix(Bill bill, Pawn pawn, Thing billGiver, List<ThingCount> chosen, List<IngredientCount> missingIngredients)
         {
-            var stockpileRef = bill.GetStockpileRef();
-            if (stockpileRef.stockpile == null)
-            {
-                return true; // Use vanilla logic
-            }
+            // Get the StockpileFilter for this bill
+            var filter = StockpileFilter.GetFilterForBill(bill);
+            if (filter == null || !filter.enabled) return true;
 
-            // Filter things to only those in our selected stockpile
-            relevantThings = relevantThings.Where(t => t.Position.GetZone(pawn.Map) == stockpileRef.stockpile).ToList();
-            
-            if (!relevantThings.Any())
-            {
-                __result = false;
-                return false;
-            }
+            // Get all stockpiles that are allowed
+            var allowedStockpiles = filter.allowedStockpiles;
+            if (allowedStockpiles == null || allowedStockpiles.Count == 0) return true;
 
-            return true; // Continue with vanilla logic using filtered list
+            // Get all things from allowed stockpiles
+            var relevantThings = allowedStockpiles
+                .SelectMany(s => s.AllContainedThings)
+                .Where(t => bill.recipe.ingredients.Any(i => i.filter.Allows(t)))
+                .ToList();
+
+            // If we found no valid ingredients, let the original method run
+            if (!relevantThings.Any()) return true;
+
+            // Try to find ingredients from our filtered list
+            return WorkGiver_DoBill.TryFindBestBillIngredientsInSet(
+                relevantThings, bill, chosen, billGiver.Position, 
+                missingIngredients, bill.recipe.allowMixingIngredients);
         }
     }
 
@@ -164,6 +177,24 @@ namespace StockpileSelector
             listing.End();
             
             base.DoSettingsWindowContents(inRect);
+        }
+    }
+
+    public class StockpileFilter
+    {
+        private static readonly Dictionary<Bill, StockpileFilter> filters = new Dictionary<Bill, StockpileFilter>();
+        
+        public bool enabled = false;
+        public List<Zone_Stockpile> allowedStockpiles = new List<Zone_Stockpile>();
+
+        public static StockpileFilter GetFilterForBill(Bill bill)
+        {
+            if (!filters.TryGetValue(bill, out var filter))
+            {
+                filter = new StockpileFilter();
+                filters[bill] = filter;
+            }
+            return filter;
         }
     }
 }
