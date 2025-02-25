@@ -8,11 +8,6 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
-    inputs:
-      steam_guard_code:
-        description: 'Steam Guard 2FA Code'
-        required: true
-        type: string
 
 jobs:
   build:
@@ -31,9 +26,12 @@ jobs:
         # Create directory for RimWorld references
         mkdir -p References
         
-        # Download RimWorld assemblies from your private storage or use Steam CMD
-        # For now, we'll need to manually upload these to a release or storage
-        # TODO: Add secure download of RimWorld assemblies
+        # Download RimWorld assemblies from repository release
+        curl -L -o References/Assembly-CSharp.dll https://github.com/${{ github.repository }}/releases/download/references/Assembly-CSharp.dll
+        curl -L -o References/UnityEngine.dll https://github.com/${{ github.repository }}/releases/download/references/UnityEngine.dll
+        curl -L -o References/UnityEngine.CoreModule.dll https://github.com/${{ github.repository }}/releases/download/references/UnityEngine.CoreModule.dll
+        curl -L -o References/UnityEngine.IMGUIModule.dll https://github.com/${{ github.repository }}/releases/download/references/UnityEngine.IMGUIModule.dll
+        curl -L -o References/UnityEngine.TextRenderingModule.dll https://github.com/${{ github.repository }}/releases/download/references/UnityEngine.TextRenderingModule.dll
 
     - name: Build
       run: |
@@ -47,11 +45,22 @@ jobs:
 
   deploy:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    environment:
+      name: steam-workshop
+      url: https://steamcommunity.com/sharedfiles/filedetails/?id=${{ secrets.STEAM_WORKSHOP_ID }}
     
     steps:
     - uses: actions/checkout@v4
+    
+    - name: Request Steam Guard Code
+      uses: trstringer/manual-approval@v1
+      with:
+        secret: ${{ github.token }}
+        approvers: ${{ github.actor }}
+        minimum-approvals: 1
+        message: 'Please enter your Steam Guard code'
     
     - name: Download build artifacts
       uses: actions/download-artifact@v4
@@ -85,7 +94,6 @@ jobs:
         tar -xvzf steamcmd_linux.tar.gz
         
         # First login to cache credentials
-        ./steamcmd.sh +login "$STEAM_USERNAME" "$STEAM_PASSWORD" "${{ github.event.inputs.steam_guard_code }}" +quit
-        
-        # Upload to workshop
-        ./steamcmd.sh +workshop_build_item "$STEAM_WORKSHOP_ID" "$GITHUB_WORKSPACE" +quit 
+        echo "Waiting for Steam Guard code input..."
+        read -p "Enter Steam Guard code: " STEAM_GUARD_CODE
+        ./steamcmd.sh +login "$STEAM_USERNAME" "$STEAM_PASSWORD" "$STEAM_GUARD_CODE" +quit 

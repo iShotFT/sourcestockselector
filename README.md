@@ -13,7 +13,7 @@ A RimWorld mod that enhances bill management by allowing you to select specific 
 ## Installation
 
 ### Steam Workshop
-*(Not yet available)*
+[Subscribe on Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3434050137)
 
 ### Manual Installation
 1. Download the latest release

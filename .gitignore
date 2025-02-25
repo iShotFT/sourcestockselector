@@ -5,6 +5,7 @@
 [Rr]elease/
 Assemblies/*.dll
 Assemblies/*.pdb
+References/
 
 # Visual Studio files
 .vs/
