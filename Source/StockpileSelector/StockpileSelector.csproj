@@ -6,7 +6,7 @@
     <OutputType>Library</OutputType>
     <AssemblyName>StockpileSelector</AssemblyName>
     <RootNamespace>StockpileSelector</RootNamespace>
-    <OutputPath>..\..\Assemblies\</OutputPath>
+    <OutputPath>..\..\1.4\Assemblies\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <DebugType>none</DebugType>
     <Optimize>true</Optimize>

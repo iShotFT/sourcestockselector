@@ -3,8 +3,8 @@
 [Oo]bj/
 [Dd]ebug/
 [Rr]elease/
-Assemblies/*.dll
-Assemblies/*.pdb
+*/Assemblies/*.dll
+*/Assemblies/*.pdb
 References/
 
 # Visual Studio files
