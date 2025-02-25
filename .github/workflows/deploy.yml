@@ -10,18 +10,21 @@ on:
 
 jobs:
   deploy:
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: steam-workshop
       url: https://steamcommunity.com/sharedfiles/filedetails/?id=3434050137
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Build mod
+      uses: ./.github/workflows/build.yml
+      id: build
     
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
-        name: StockpileSelector
+        name: ${{ needs.build.outputs.artifact_name }}
         path: Assemblies
 
     - name: Create GitHub Release

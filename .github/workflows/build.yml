@@ -6,10 +6,17 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
+  workflow_call:
+    outputs:
+      artifact_name:
+        description: "The name of the build artifact"
+        value: StockpileSelector
 
 jobs:
   build:
     runs-on: windows-latest
+    outputs:
+      artifact_name: StockpileSelector
     
     steps:
     - uses: actions/checkout@v4
