@@ -1,0 +1,76 @@
+name: Deploy to Steam Workshop
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: steam-workshop
+      url: https://steamcommunity.com/sharedfiles/filedetails/?id=3434050137
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Build mod
+      uses: ./.github/workflows/build.yml
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: StockpileSelector
+        path: Assemblies
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: Assemblies/StockpileSelector.dll
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup Steam Workshop Upload
+      run: |
+        # Install SteamCMD
+        sudo apt-get install -y lib32gcc1
+        mkdir -p ~/.steam/steam
+        
+        # Download and setup SteamCMD
+        wget https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz
+        tar -xvzf steamcmd_linux.tar.gz
+
+    - name: Request Steam Guard Code
+      uses: trstringer/manual-approval@v1
+      with:
+        secret: ${{ github.token }}
+        approvers: ${{ github.actor }}
+        minimum-approvals: 1
+        message: 'Enter Steam Guard code to proceed with workshop upload'
+
+    - name: Upload to Steam Workshop
+      if: success()
+      env:
+        STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
+        STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
+        STEAM_WORKSHOP_ID: ${{ secrets.STEAM_WORKSHOP_ID }}
+      run: |
+        # Login and upload
+        echo "Waiting for Steam Guard code input..."
+        read -p "Enter Steam Guard code: " STEAM_GUARD_CODE
+        
+        # Attempt login
+        ./steamcmd.sh +login "$STEAM_USERNAME" "$STEAM_PASSWORD" "$STEAM_GUARD_CODE" +quit
+        
+        # If login successful, upload to workshop
+        if [ $? -eq 0 ]; then
+          ./steamcmd.sh +workshop_build_item "$STEAM_WORKSHOP_ID" "$GITHUB_WORKSPACE" +quit
+        else
+          echo "Steam login failed"
+          exit 1
+        fi 
