@@ -7,17 +7,22 @@ on:
       - 'v*'
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:  # Allows manual trigger
+  workflow_dispatch:
+    inputs:
+      steam_guard_code:
+        description: 'Steam Guard 2FA Code'
+        required: true
+        type: string
 
 jobs:
   build:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '7.0.x'
     
@@ -35,7 +40,7 @@ jobs:
         dotnet build Source/StockpileSelector/StockpileSelector.csproj -c Release
         
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: StockpileSelector
         path: Assemblies/StockpileSelector.dll
@@ -46,44 +51,41 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Download build artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: StockpileSelector
         path: Assemblies
 
     - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
+        files: Assemblies/StockpileSelector.dll
         draft: false
         prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Upload to Steam Workshop
       if: success()
       env:
         STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
         STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
-        STEAM_GUARD_FILE: ${{ secrets.STEAM_GUARD_FILE }}
         STEAM_WORKSHOP_ID: ${{ secrets.STEAM_WORKSHOP_ID }}
       run: |
         # Install SteamCMD
         sudo apt-get install -y lib32gcc1
-        mkdir -p ~/.steam/steam/config
-        echo "$STEAM_GUARD_FILE" > ~/.steam/steam/config/guard.txt
+        mkdir -p ~/.steam/steam
         
         # Download and setup SteamCMD
         wget https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz
         tar -xvzf steamcmd_linux.tar.gz
         
         # First login to cache credentials
-        ./steamcmd.sh +login "$STEAM_USERNAME" "$STEAM_PASSWORD" +quit
+        ./steamcmd.sh +login "$STEAM_USERNAME" "$STEAM_PASSWORD" "${{ github.event.inputs.steam_guard_code }}" +quit
         
         # Upload to workshop
         ./steamcmd.sh +workshop_build_item "$STEAM_WORKSHOP_ID" "$GITHUB_WORKSPACE" +quit 
