@@ -56,11 +56,44 @@ The project uses a Makefile for building and installation. Run these commands fr
     # Clean and rebuild everything
     make rebuild
 
+### Deployment
+
+#### Automatic Deployment via GitHub Actions
+
+The project uses two GitHub workflows:
+1. **Build** - Runs on every push and PR
+   - Builds the mod
+   - Creates build artifacts
+
+2. **Deploy to Steam Workshop** - Manual trigger only
+   - Uses latest successful build artifacts
+   - Creates GitHub release with specified version
+   - Publishes to Steam Workshop
+
+To deploy a new version:
+
+1. Trigger deployment:
+   - Go to GitHub repository Actions tab
+   - Select "Deploy to Steam Workshop"
+   - Click "Run workflow"
+   - Enter version number (e.g. "1.0.0")
+   - Click "Run workflow"
+   - Approve the deployment when prompted
+   - Enter Steam Guard code when requested
+
+#### Required Secrets
+
+The following secrets need to be set in GitHub repository settings:
+- `STEAM_USERNAME`: Your Steam account username
+- `STEAM_PASSWORD`: Your Steam account password
+- `STEAM_WORKSHOP_ID`: The mod's Steam Workshop ID (3434050137)
+
 ### Project Structure
 
     StockpileSelector/
     ├── About/
-    │   └── About.xml          # Mod metadata
+    │   ├── About.xml          # Mod metadata
+    │   └── PublishedFileId.txt # Steam Workshop ID
     ├── Assemblies/
     │   └── StockpileSelector.dll
     ├── Source/
@@ -68,6 +101,10 @@ The project uses a Makefile for building and installation. Run these commands fr
     │       ├── Properties/
     │       ├── StockpileSelector.cs
     │       └── StockpileSelector.csproj
+    ├── .github/
+    │   └── workflows/
+    │       ├── build.yml      # Build workflow
+    │       └── deploy.yml     # Deploy workflow
     ├── Makefile              # Build automation
     └── README.md            # This file
 
