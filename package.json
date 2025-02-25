@@ -1,0 +1,8 @@
+{
+  "name": "stockpileselector",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "iShotFT <andries@verbanck.be>",
+  "license": "MIT",
+  "private": false
+}
